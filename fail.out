@@ -1,0 +1,51 @@
+ *******************************************************************************
+ ** Site#: 34238        For non-commercial use only    Version 20.079L 64BITS **
+ *******************************************************************************
+ ** Cite this program as: MOPAC2016, Version: 20.079L, James J. P. Stewart,   **
+ ** Stewart Computational Chemistry, web: HTTP://OpenMOPAC.net. Days left: 337**
+ *******************************************************************************
+ **                                                                           **
+ **                                MOPAC2016                                  **
+ **                                                                           **
+ *******************************************************************************
+
+                              PM6 CALCULATION RESULTS
+
+ *******************************************************************************
+ *  CALCULATION DONE:                                Fri Apr 17 08:24:21 2020  *
+ *  PM6        - The PM6 Hamiltonian to be used
+ *  A0         - INPUT GEOMETRY IS IN ATOMIC UNITS (A0)
+ *
+ *  EXTERNAL=n  -  DEFAULT PARAMETERS RESET USING DATA IN FILES: 
+ *                 "params.dat"
+ *  XYZ        - CARTESIAN COORDINATE SYSTEM TO BE USED
+ *  1SCF       - DO 1 SCF AND THEN STOP 
+ *  THREADS=1  - MULTI-THREADING NOT USED
+ *  T=         - A TIME OF 172800.0 SECONDS REQUESTED
+ *  DUMP=N     - RESTART FILE WRITTEN EVERY  7200.000 SECONDS
+ *  SCFCRT     - DEFAULT SCF CRITERION REPLACED BY   0.100E-20
+ *  AUX        - OUTPUT AUXILIARY INFORMATION
+
+          UNRECOGNIZED KEY-WORDS: (CHARGE 1)
+
+          IF THESE ARE DEBUG KEYWORDS, ADD THE KEYWORD "DEBUG".
+ *
+ *  Errors detected in keywords.  Job stopped here to avoid wasting time.
+ *
+ *******************************************************************************
+
+ ******************************************************************************
+ *                                                                            *
+ *     Error and normal termination messages reported in this calculation     *
+ *                                                                            *
+ * UNRECOGNIZED KEY-WORDS: (CHARGE 1)                                         *
+ * IF THESE ARE DEBUG KEYWORDS, ADD THE KEYWORD "DEBUG".                      *
+ * JOB ENDED NORMALLY                                                         *
+ *                                                                            *
+ ******************************************************************************
+
+
+
+ TOTAL JOB TIME:             0.00 SECONDS
+
+ == MOPAC DONE ==
