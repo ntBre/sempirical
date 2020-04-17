@@ -437,7 +437,7 @@ c     Auxiliary routine: printing a matrix.
     - float energy or string job identifier
 * TODO generate necessary matrices - abinitio-calced, params?
 * TODO adjust parameters - gonum/lapack routines
-* TODO update final output files - params, rmsd
+* TODO update final output files - params.dat, rmsd in outfile
   - os.WriteString to open file
 * TODO loop above while difference is above some threshold
   

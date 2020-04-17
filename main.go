@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -10,7 +11,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"errors"
 )
 
 const (
@@ -46,6 +46,26 @@ type Parameters struct {
 	Names   []string
 	Targets []string
 	Values  []float64
+}
+
+func (p Parameters) Write(filename string) error {
+	var n int
+	var e error
+	infile, err := os.OpenFile(filename,
+		os.O_CREATE|os.O_WRONLY, 0755)
+	defer infile.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	for i, _ := range p.Names {
+		line := fmt.Sprintf("%20s%10s%20.12f\n", p.Names[i],
+			p.Targets[i], p.Values[i])
+		n, e = infile.WriteString(line)
+	}
+	if e != nil {
+		return errors.New(fmt.Sprintf("Error after writing %d bytes to %s", n, filename))
+	}
+	return nil
 }
 
 type Input struct {
@@ -282,4 +302,10 @@ func ReadMopacOut(filename string) interface{} {
 	}
 	log.Printf("%s and %s not found", filename, outfile)
 	return errors.New(fmt.Sprintf("%s and %s not found", filename, outfile))
+}
+
+func WriteOutfile(filename string) error {
+	// should take the basename from main method and write
+	// the iteration number, rmsd, maybe something else if needed
+	return nil
 }

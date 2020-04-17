@@ -163,3 +163,12 @@ func TestReadMopacOut(t *testing.T) {
 		}
 	})
 }
+
+func TestWriteParams(t *testing.T) {
+	t.Run("No error", func(t *testing.T) {
+		err := testinp.Param.Write("test-params.dat")
+		if err != nil {
+			t.Errorf("Didn't want an error but got one")
+		}
+	})
+}
