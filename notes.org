@@ -441,6 +441,7 @@ c     Auxiliary routine: printing a matrix.
   - os.WriteString to open file
 * TODO loop above while difference is above some threshold
   
+  
 * Ideas
   - catching stdout from sbatch gives the job identifier if needed
   - probably should be using strings.TrimSpace instead of NotBlank

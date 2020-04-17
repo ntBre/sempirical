@@ -264,7 +264,7 @@ func WriteMopacIn(inp Input, geom []float64, n int) string {
 	return filename
 }
 
-func SlurmSubmit(filename string) string {
+func SlurmSubmit(filename string) int {
 	cmd := exec.Command("sbatch", "--job-name=qff", "--ntasks=1",
 		"--cpus-per-task=1", "--mem=1gb ",
 		"--output=/dev/null", "--error=/dev/null ",
@@ -273,7 +273,9 @@ func SlurmSubmit(filename string) string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return string(out)
+	val := strings.Split(string(out), " ")
+	i, err := strconv.Atoi(val[len(val)-1])
+	return i
 }
 
 func ReadMopacOut(filename string) interface{} {

@@ -129,11 +129,9 @@ func TestWriteMopacIn(t *testing.T) {
 
 func TestSlurmSubmit(t *testing.T) {
 	got := SlurmSubmit(BaseMopFilename + "00001.mop")
-	want := "--job-name=qff --ntasks=1 --cpus-per-task=1 " +
-		"--mem=1gb --output=/dev/null --error=/dev/null " +
-		"/home/qc/mopac2016/mopac.sh inp/Structure00001.mop"
+	want := 775241
 	if got != want {
-		t.Errorf("got %q, want %q", got, want)
+		t.Errorf("got %d, want %d", got, want)
 	}
 }
 
@@ -148,11 +146,9 @@ func TestReadMopacOut(t *testing.T) {
 
 	t.Run("Job failed but output produced", func(t *testing.T) {
 		got := ReadMopacOut("fail.aux")
-		want := "--job-name=qff --ntasks=1 --cpus-per-task=1 " +
-		"--mem=1gb --output=/dev/null --error=/dev/null " +
-		"/home/qc/mopac2016/mopac.sh fail.mop"
+		want := 775241
 		if got != want {
-			t.Errorf("got %s, wanted %s", got, want)
+			t.Errorf("got %d, wanted %d", got, want)
 		}
 	})
 
