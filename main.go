@@ -4,37 +4,44 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"gonum.org/v1/gonum/mat"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
 const (
-	nparam          = "NPARAM"
-	method          = "METHOD"
-	nmolec          = "NMOLEC"
-	charge          = "CHARGE"
-	nstruct         = "NSTRUCT"
-	efile           = "EFILE"
-	gfile           = "GFILE"
-	units           = "UNITS"
-	geometry        = "GEOMETRY"
-	parameters      = "PARAMS"
-	threads         = 1            // number of threads in mopac input
-	scfcrt          = "1.D-21"     // scf convergence criteria for mopac inp
-	auxprcsn        = 9            // aux precision in mopac inp
-	paramsfile      = "params.dat" // file for current mopac params
-	BaseMopFilename = "inp/Structure"
+	nparam            = "NPARAM"
+	method            = "METHOD"
+	nmolec            = "NMOLEC"
+	charge            = "CHARGE"
+	nstruct           = "NSTRUCT"
+	efile             = "EFILE"
+	gfile             = "GFILE"
+	units             = "UNITS"
+	geometry          = "GEOMETRY"
+	parameters        = "PARAMS"
+	threads           = 1            // number of threads in mopac input
+	scfcrt            = "1.D-21"     // scf convergence criteria for mopac inp
+	auxprcsn          = 9            // aux precision in mopac inp
+	paramsfile        = "params.dat" // file for current mopac params
+	BaseMopFilename   = "inp/Structure"
+	cm1               = 219474.5459784 // wavenumbers per hartree
+	cm1ev             = 8065.541154    //wavenumbers per ev
+	maxretries        = 3              // max number of times to try running mopac
+	errTooManyRetries = MopacErr("Too many retries")
+	errFilesNotFound  = MopacErr(".aux and .out files not found")
 )
 
-func check(e error) {
-	if e != nil {
-		log.Fatal(e)
-	}
+type MopacErr string
+
+func (e MopacErr) Error() string {
+	return string(e)
 }
 
 type Geometry struct {
@@ -185,7 +192,9 @@ func NewInput(lines []string) Input {
 
 func ReadFile(filename string) (lines []string) {
 	file, err := os.Open(filename)
-	check(err)
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -251,9 +260,9 @@ func MakeMopacIn(inp Input, geom []float64) (mopfile []string) {
 
 func WriteMopacIn(inp Input, geom []float64, n int) string {
 	err := os.Mkdir("inp", 0755)
-	if err != nil {
-		log.Println("Warning: directory 'inp' exists, overwriting")
-	}
+	// if err != nil {
+	// 	log.Println("Warning: directory 'inp' exists, overwriting")
+	// }
 	lines := MakeMopacIn(inp, geom)
 	writelines := strings.Join(lines, "\n")
 	filename := BaseMopFilename + fmt.Sprintf("%05d.mop", n)
@@ -278,36 +287,90 @@ func SlurmSubmit(filename string) int {
 	return i
 }
 
-func ReadMopacOut(filename string) interface{} {
+func ReadMopacOut(job Job) (interface{}, error) {
 	var eline []string
-	re := regexp.MustCompile(`aux`)
-	outfile := re.ReplaceAllString(filename, "out")
-	infile := re.ReplaceAllString(filename, "mop")
-	if _, err := os.Stat(filename); !os.IsNotExist(err) {
-		lines := ReadFile(filename)
+	re := regexp.MustCompile(`mop`)
+	auxfile := re.ReplaceAllString(job.Name, "aux")
+	re = regexp.MustCompile(`aux`)
+	outfile := re.ReplaceAllString(auxfile, "out")
+	infile := re.ReplaceAllString(auxfile, "mop")
+	if _, err := os.Stat(auxfile); !os.IsNotExist(err) {
+		lines := ReadFile(auxfile)
 		for _, line := range lines {
 			if strings.Contains(line, "TOTAL_ENERGY") {
 				re := regexp.MustCompile(`D`)
 				fix := re.ReplaceAllString(line, "E")
 				eline = strings.Split(fix, "=")
 				f, _ := strconv.ParseFloat(eline[len(eline)-1], 64)
-				return f
+				return f, nil // f in ev
 			}
 		}
 	} else if _, err := os.Stat(outfile); !os.IsNotExist(err) {
 		lines := ReadFile(outfile)
 		for _, line := range lines {
-			if strings.Contains(line, "MOPAC DONE") {
-				return SlurmSubmit(infile)
+			if strings.Contains(line, "MOPAC DONE") &&
+				job.Retries < maxretries {
+				return SlurmSubmit(infile),
+					errors.New("Resubmitting job")
+			} else if job.Retries >= maxretries {
+				return nil, errTooManyRetries
 			}
 		}
 	}
-	log.Printf("%s and %s not found", filename, outfile)
-	return errors.New(fmt.Sprintf("%s and %s not found", filename, outfile))
+	return nil, errFilesNotFound
 }
 
 func WriteOutfile(filename string) error {
 	// should take the basename from main method and write
 	// the iteration number, rmsd, maybe something else if needed
 	return nil
+}
+
+func Basename(filename string) string {
+	file := path.Base(filename)
+	re := regexp.MustCompile(path.Ext(file))
+	basename := re.ReplaceAllString(file, "")
+	return basename
+}
+
+func LossFunction(dst, x []float64) {
+	inp := ReadInp("new.inp")
+	geom := ReadGeoms("file07")
+	energies := ReadEnergies("energy.dat")
+	energyVector := mat.NewVecDense(len(energies), energies)
+	emin := mat.Min(energyVector)
+	var jobs []Job
+	// for i, _ := range energies {
+	for i, _ := range []int{1, 2, 3, 4, 5} {
+		energies[i] = (energies[i] - emin) * cm1 // ab initio energies now in wavenumbers
+		filename := WriteMopacIn(inp, geom[i], i+1)
+		jobnum := SlurmSubmit(filename)
+		jobs = append(jobs, Job{filename, jobnum, "queued", 0})
+	}
+	njobs := len(jobs)
+	for njobs > 0 {
+		for i, job := range jobs {
+			if job.Status != "done" {
+				f, err := ReadMopacOut(job)
+				switch err {
+				case nil:
+					dst[i] = energies[i] - f.(float64)*cm1ev
+					job.Status = "done"
+					njobs -= 1
+					// case errFilesNotFound:
+					// 	log.Fatal(err)
+					// case errTooManyRetries:
+					// 	log.Fatal(err)
+				}
+			}
+		}
+		njobs--
+	}
+}
+
+type Job struct {
+	Name    string
+	Number  int
+	Status  string
+	Retries int
 }

@@ -136,8 +136,9 @@ func TestSlurmSubmit(t *testing.T) {
 }
 
 func TestReadMopacOut(t *testing.T) {
+	job := Job{"test.aux", 11111, "queued", 0}
 	t.Run("Job ran successfully", func(t *testing.T) {
-		got := ReadMopacOut("test.aux")
+		got, _ := ReadMopacOut(job)
 		want := 0.277615868297292E+78
 		if got != want {
 			t.Errorf("got %f, wanted %f", got, want)
@@ -145,15 +146,26 @@ func TestReadMopacOut(t *testing.T) {
 	})
 
 	t.Run("Job failed but output produced", func(t *testing.T) {
-		got := ReadMopacOut("fail.aux")
+	job := Job{"fail.aux", 11111, "queued", 0}
+		got, _ := ReadMopacOut(job)
 		want := 775241
 		if got != want {
 			t.Errorf("got %d, wanted %d", got, want)
 		}
 	})
 
+	t.Run("Job failed, output produced, but out of retries", func(t *testing.T) {
+	job := Job{"fail.aux", 11111, "queued", maxretries+1}
+		_, err := ReadMopacOut(job)
+		want := errTooManyRetries
+		if err != want {
+			t.Errorf("got %s, wanted %s", err, want)
+		}
+	})
+
 	t.Run("Job failed and no output", func(t *testing.T) {
-		err := ReadMopacOut("fail1.aux")
+	job := Job{"fail1.aux", 11111, "queued", 0}
+		_, err := ReadMopacOut(job)
 		if err == nil {
 			t.Errorf("Wanted an error but didn't get one")
 		}
@@ -167,4 +179,16 @@ func TestWriteParams(t *testing.T) {
 			t.Errorf("Didn't want an error but got one")
 		}
 	})
+}
+
+func TestBasename(t *testing.T) {
+	got := Basename("/home/brent/Projects/sempirical/main.inp")
+	want := "main"
+	if got != want {
+		t.Errorf("got %s, wanted %s", got, want)
+	}
+}
+
+func TestLossFunction(t *testing.T) {
+	LossFunction([]float64{}, []float64{})
 }

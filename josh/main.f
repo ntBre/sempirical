@@ -180,11 +180,11 @@
       close(55)
 
 !
-!     Build the EAB array
+!     Build the EAB array - Energy AB initio
 !     This array contains all the "true" values that we are using to
 !     train the method
 !    
-      E1size=Sum(ngeoms)+sum(nstruct)
+      E1size=Sum(ngeoms)+sum(nstruct) ! add energy values
       m=e1size
       allocate(eab(m),eabmin(nmolec),fvec(m),etemp(maxval(nstruct)))
       jj=0
@@ -197,19 +197,19 @@
          enddo
          eabmin(i)=minval(etemp)
          close(1)
-         do j = jj-nstruct(i)+1 , jj
-            eab(j)=(eab(j)-eabmin(i))*219474.63
+         do j = jj-nstruct(i)+1 , jj ! make energy relative 
+            eab(j)=(eab(j)-eabmin(i))*219474.63 ! convert to wavenumbers ?!
             write(89,*) eab(j)
          enddo
       enddo
 !
-      do i = 1, nmolec
+      do i = 1, nmolec ! add the geometry values
          do j = 1, ngeoms(i)
           jj=jj+1
           if(igeoms(i,j,1).eq.2) then
             dist=0.
             do k=1,3
-            dist=dist+(xyz(i,igeoms(i,j,2),k)-xyz(i,igeoms(i,j,3),k))**2
+            dist=dist+(xyz(i,igeoms(i,j,2),k)-xyz(i,igeoms(i,j,3),k))**2 ! handling weights?
             enddo
             eab(jj)=sqrt(dist)*au2ang
           endif
@@ -232,6 +232,15 @@
 
       JJ = 1
 !
+! FCN = ??
+! m = # geoms + # structs, n = # parameters
+! X = parameter array
+! FVEC = ??
+! TOL = tolerance, defined above
+! INFO =  ??
+! IWA = array same size as X
+! WA = array size LWA
+! LWA = 1153000 from above but idk why
        CALL LMDIF1(FCN,M,N,X,FVEC,TOL,INFO,IWA,WA,LWA)
 !      
        WRITE(6,*) 'Final parameters'
