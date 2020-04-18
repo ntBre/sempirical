@@ -1,0 +1,13 @@
+ 
+Working directory   = /home/brent/programs/sempirical
+Scratch directory   = /tmp/brent/inp/Structure00001_2020-04-17_17_16_25
+Input  file         = inp/Structure00001.mop
+Output file         = inp/Structure00001.out
+MOPAC executable    = /home/qc/mopac2016/MOPAC2016.exe
+ 
+Running MOPAC on local host (node3)
+ 
+
+
+          MOPAC Job: "inp/Structure00001.mop" ended normally on Apr 17, 2020, at 17:16.
+

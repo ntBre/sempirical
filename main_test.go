@@ -127,13 +127,13 @@ func TestWriteMopacIn(t *testing.T) {
 	}
 }
 
-func TestSlurmSubmit(t *testing.T) {
-	got := SlurmSubmit(BaseMopFilename + "00001.mop")
-	want := 775241
-	if got != want {
-		t.Errorf("got %d, want %d", got, want)
-	}
-}
+// func TestSlurmSubmit(t *testing.T) {
+// 	got := SlurmSubmit(BaseMopFilename + "00001.mop")
+// 	want := 775241
+// 	if got != want {
+// 		t.Errorf("got %d, want %d", got, want)
+// 	}
+// }
 
 func TestReadMopacOut(t *testing.T) {
 	job := Job{"test.aux", 11111, "queued", 0}
@@ -145,14 +145,14 @@ func TestReadMopacOut(t *testing.T) {
 		}
 	})
 
-	t.Run("Job failed but output produced", func(t *testing.T) {
-	job := Job{"fail.aux", 11111, "queued", 0}
-		got, _ := ReadMopacOut(job)
-		want := 775241
-		if got != want {
-			t.Errorf("got %d, wanted %d", got, want)
-		}
-	})
+	// t.Run("Job failed but output produced", func(t *testing.T) {
+	// job := Job{"fail.aux", 11111, "queued", 0}
+	// 	got, _ := ReadMopacOut(job)
+	// 	want := 775241
+	// 	if got != want {
+	// 		t.Errorf("got %d, wanted %d", got, want)
+	// 	}
+	// })
 
 	t.Run("Job failed, output produced, but out of retries", func(t *testing.T) {
 	job := Job{"fail.aux", 11111, "queued", maxretries+1}
@@ -189,6 +189,7 @@ func TestBasename(t *testing.T) {
 	}
 }
 
-func TestLossFunction(t *testing.T) {
-	LossFunction([]float64{}, []float64{})
-}
+// func TestLossFunction(t *testing.T) {
+// 	inp := ReadInp("new.inp")
+// 	LossFunction([]float64{}, inp.Param.Values)
+// }

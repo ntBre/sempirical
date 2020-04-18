@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
+        "github.com/maorshutman/lm"
 )
 
 const (
@@ -276,14 +278,14 @@ func WriteMopacIn(inp Input, geom []float64, n int) string {
 func SlurmSubmit(filename string) int {
 	cmd := exec.Command("sbatch", "--job-name=qff", "--ntasks=1",
 		"--cpus-per-task=1", "--mem=1gb ",
-		"--output=/dev/null", "--error=/dev/null ",
+		"--output=test.out", "--error=test.err",
 		"/home/qc/mopac2016/mopac.sh", filename)
 	out, err := cmd.Output()
 	if err != nil {
 		log.Fatal(err)
 	}
 	val := strings.Split(string(out), " ")
-	i, err := strconv.Atoi(val[len(val)-1])
+	i, _ := strconv.Atoi(strings.TrimSpace(val[len(val)-1]))
 	return i
 }
 
@@ -338,14 +340,18 @@ func LossFunction(dst, x []float64) {
 	geom := ReadGeoms("file07")
 	energies := ReadEnergies("energy.dat")
 	energyVector := mat.NewVecDense(len(energies), energies)
+	inp.Param.Values = x
+	inp.Param.Write("inp/" + paramsfile)
 	emin := mat.Min(energyVector)
 	var jobs []Job
-	// for i, _ := range energies {
-	for i, _ := range []int{1, 2, 3, 4, 5} {
+	dst = make([]float64, len(geom))
+	for i, _ := range energies {
+	// for i, _ := range []int{1, 2, 3, 4, 5} {
 		energies[i] = (energies[i] - emin) * cm1 // ab initio energies now in wavenumbers
 		filename := WriteMopacIn(inp, geom[i], i+1)
 		jobnum := SlurmSubmit(filename)
 		jobs = append(jobs, Job{filename, jobnum, "queued", 0})
+		time.Sleep(100 * time.Millisecond)
 	}
 	njobs := len(jobs)
 	for njobs > 0 {
@@ -357,15 +363,16 @@ func LossFunction(dst, x []float64) {
 					dst[i] = energies[i] - f.(float64)*cm1ev
 					job.Status = "done"
 					njobs -= 1
-					// case errFilesNotFound:
-					// 	log.Fatal(err)
-					// case errTooManyRetries:
-					// 	log.Fatal(err)
+					case errFilesNotFound:
+						continue
+					case errTooManyRetries:
+						log.Fatal(err)
 				}
 			}
 		}
-		njobs--
+		time.Sleep(1000 * time.Millisecond)
 	}
+	inp.Param.Write("inp/" + paramsfile)
 }
 
 type Job struct {
@@ -373,4 +380,27 @@ type Job struct {
 	Number  int
 	Status  string
 	Retries int
+}
+
+func main() {
+	// this inp is different from the inp inside
+	// hence, the inside one is not updating and the params are not
+	// either, rendering it useless
+	// the initparams below should be being updated but are not written
+	// and the params in LossFunction are reread from the input
+	// on each iteration
+	inp := ReadInp("new.inp")
+	biggsNumJac := lm.NumJac{Func: LossFunction}
+	biggsProb := lm.LMProblem{
+	Dim:        inp.Nparam,
+ 	Size:       inp.Nstruct,
+ 	Func:       LossFunction,
+ 	Jac:        biggsNumJac.Jac,
+ 	InitParams: inp.Param.Values,
+	Tau:        1e-3, // 6 -> 3
+ 	Eps1:       1e-8,
+ 	Eps2:       1e-8,}
+biggsResults, biggsErr := lm.LM(biggsProb, &lm.Settings{Iterations: 100, ObjectiveTol: 1e-16})
+fmt.Println(biggsResults)
+fmt.Println(biggsErr)
 }

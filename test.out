@@ -1,0 +1,9 @@
+ 
+Working directory   = /home/brent/programs/sempirical
+Scratch directory   = /tmp/brent/inp/Structure05364_2020-04-17_20_45_26
+Input  file         = inp/Structure05364.mop
+Output file         = inp/Structure05364.out
+MOPAC executable    = /home/qc/mopac2016/MOPAC2016.exe
+ 
+Running MOPAC on local host (node2)
+ 
