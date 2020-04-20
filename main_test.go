@@ -2,7 +2,10 @@ package main
 
 import (
 	"reflect"
+	"regexp"
+	"strconv"
 	"testing"
+	"fmt"
 )
 
 var testinp = Input{
@@ -127,69 +130,96 @@ func TestWriteMopacIn(t *testing.T) {
 	}
 }
 
-// func TestSlurmSubmit(t *testing.T) {
-// 	got := SlurmSubmit(BaseMopFilename + "00001.mop")
-// 	want := 775241
-// 	if got != want {
-// 		t.Errorf("got %d, want %d", got, want)
-// 	}
-// }
-
-func TestReadMopacOut(t *testing.T) {
-	job := Job{"test.aux", 11111, "queued", 0}
-	t.Run("Job ran successfully", func(t *testing.T) {
-		got, _ := ReadMopacOut(job)
-		want := 0.277615868297292E+78
-		if got != want {
-			t.Errorf("got %f, wanted %f", got, want)
-		}
-	})
-
-	// t.Run("Job failed but output produced", func(t *testing.T) {
-	// job := Job{"fail.aux", 11111, "queued", 0}
-	// 	got, _ := ReadMopacOut(job)
-	// 	want := 775241
-	// 	if got != want {
-	// 		t.Errorf("got %d, wanted %d", got, want)
-	// 	}
-	// })
-
-	t.Run("Job failed, output produced, but out of retries", func(t *testing.T) {
-	job := Job{"fail.aux", 11111, "queued", maxretries+1}
-		_, err := ReadMopacOut(job)
-		want := errTooManyRetries
-		if err != want {
-			t.Errorf("got %s, wanted %s", err, want)
-		}
-	})
-
-	t.Run("Job failed and no output", func(t *testing.T) {
-	job := Job{"fail1.aux", 11111, "queued", 0}
-		_, err := ReadMopacOut(job)
-		if err == nil {
-			t.Errorf("Wanted an error but didn't get one")
-		}
-	})
-}
-
-func TestWriteParams(t *testing.T) {
-	t.Run("No error", func(t *testing.T) {
-		err := testinp.Param.Write("test-params.dat")
-		if err != nil {
-			t.Errorf("Didn't want an error but got one")
-		}
-	})
-}
-
-func TestBasename(t *testing.T) {
-	got := Basename("/home/brent/Projects/sempirical/main.inp")
-	want := "main"
-	if got != want {
-		t.Errorf("got %s, wanted %s", got, want)
+func TestSlurmSubmit(t *testing.T) {
+	got := strconv.Itoa(SlurmSubmit(BaseMopFilename + "00001.mop"))
+	re := regexp.MustCompile(`[0-9]{5,8}`)
+	if !re.MatchString(got) {
+		t.Errorf("got %q, wanted %v", got, re)
 	}
 }
 
-// func TestLossFunction(t *testing.T) {
-// 	inp := ReadInp("new.inp")
-// 	LossFunction([]float64{}, inp.Param.Values)
+// func TestReadMopacOut(t *testing.T) {
+// 	job := Job{"test.aux", 11111, "queued", 0}
+// 	t.Run("Job ran successfully", func(t *testing.T) {
+// 		got, _ := ReadMopacOut(job)
+// 		want := 0.277615868297292e+78
+// 		if got != want {
+// 			t.Errorf("got %f, wanted %f", got, want)
+// 		}
+// 	})
+
+// 	t.Run("Job failed but output produced", func(t *testing.T) {
+// 		job := Job{"fail.aux", 11111, "queued", 0}
+// 		got, _ := ReadMopacOut(job)
+// 		re := regexp.MustCompile(`[0-9]{5,8}`)
+// 		strgot := strconv.Itoa(got.(int))
+// 		if !re.MatchString(strgot) {
+// 			t.Errorf("got %q, wanted %v", got, re)
+// 		}
+// 	})
+
+// 	t.Run("Job failed, output produced, but out of retries", func(t *testing.T) {
+// 		job := Job{"fail.aux", 11111, "queued", maxretries + 1}
+// 		_, err := ReadMopacOut(job)
+// 		want := errTooManyRetries
+// 		if err != want {
+// 			t.Errorf("got %s, wanted %s", err, want)
+// 		}
+// 	})
+
+// 	t.Run("Job failed and no output", func(t *testing.T) {
+// 		job := Job{"fail1.aux", 11111, "queued", 0}
+// 		_, err := ReadMopacOut(job)
+// 		if err == nil {
+// 			t.Errorf("Wanted an error but didn't get one")
+// 		}
+// 	})
+// }
+
+// func TestWriteParams(t *testing.T) {
+// 	t.Run("No error", func(t *testing.T) {
+// 		err := testinp.Param.Write("test-params.dat")
+// 		if err != nil {
+// 			t.Errorf("Didn't want an error but got one")
+// 		}
+// 	})
+// }
+
+// func TestBasename(t *testing.T) {
+// 	got := Basename("/home/brent/Projects/sempirical/main.inp")
+// 	want := "main"
+// 	if got != want {
+// 		t.Errorf("got %s, wanted %s", got, want)
+// 	}
+// }
+
+// func TestFcn(t *testing.T) {
+// 	got := Fcn(&testinp, []float64{-153.506766246758, -153.506744023064},
+// 		testgeom)
+// 	want := []float64{4.1738645326326294e+06, 4.1738585662503745e+06}
+// 	if !reflect.DeepEqual(got, want) {
+// 		t.Errorf("got %v, wanted %v", got, want)
+// 	}
+// }
+	
+// func TestEnorm(t *testing.T) {
+// 	got := Enorm([]float64{3, 4})
+// 	want := 5.0
+// 	if got != want {
+// 		t.Errorf("got %f, wanted %f", got, want)
+// 	}
+// }
+
+// func TestLmdif(t *testing.T) {
+// 	got := Lmdif(testinp, []float64{-153.506766246758, -153.506744023064},
+// 		testgeom)
+// }
+
+// func TestFdjac2(t *testing.T) {
+// 	inp := testinp
+// 	fvec := Fcn(&inp, []float64{-153.506766246758, -153.506744023064},
+// 		testgeom)
+// 	got := Fdjac2(&inp, []float64{-153.506766246758, -153.506744023064},
+// 		testgeom, fvec)
+// 	fmt.Println(got)
 // }

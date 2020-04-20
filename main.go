@@ -1,11 +1,9 @@
 package main
 
 import (
-	"fmt"
-	"github.com/maorshutman/lm"
-	"gonum.org/v1/gonum/mat"
+	_ "gonum.org/v1/gonum/mat"
 	"log"
-	"time"
+	"math"
 )
 
 const (
@@ -29,61 +27,82 @@ const (
 	maxretries        = 3              // max number of times to try running mopac
 	errTooManyRetries = MopacErr("Too many retries")
 	errFilesNotFound  = MopacErr(".aux and .out files not found")
+	eps               = 1.0e-6 // tolerance
 )
 
-func main() {
-	inp := ReadInp("new.inp")
-	geom := ReadGeoms("file07")
-	energies := ReadEnergies("energy.dat")
-	energyVector := mat.NewVecDense(len(energies), energies)
-	emin := mat.Min(energyVector)
-
-	LossFunction := func(dst, x []float64) {
-		inp.Param.Values = x
-		inp.Param.Write("inp/" + paramsfile)
-		var jobs []Job
-		dst = make([]float64, len(geom))
-		for i, _ := range energies {
-			// for i, _ := range []int{1, 2, 3, 4, 5} {
-			energies[i] = (energies[i] - emin) * cm1 // ab initio energies now in wavenumbers
-			filename := WriteMopacIn(inp, geom[i], i+1)
-			jobnum := SlurmSubmit(filename)
-			jobs = append(jobs, Job{filename, jobnum, "queued", 0})
-			time.Sleep(100 * time.Millisecond)
-		}
-		njobs := len(jobs)
-		for njobs > 0 {
-			for i, job := range jobs {
-				if job.Status != "done" {
-					f, err := ReadMopacOut(job)
-					switch err {
-					case nil:
-						dst[i] = energies[i] - f.(float64)*cm1ev
-						job.Status = "done"
-						njobs -= 1
-					case errFilesNotFound:
-						continue
-					case errTooManyRetries:
-						log.Fatal(err)
-					}
+func Fcn(inp *Input, energies []float64, geom [][]float64) (fvec []float64) {
+	inp.Param.Write(paramsfile)
+	var jobs []Job
+	fvec = make([]float64, len(geom))
+	for i, _ := range energies {
+		filename := WriteMopacIn(*inp, geom[i], i+1)
+		jobnum := SlurmSubmit(filename)
+		jobs = append(jobs, Job{filename, jobnum, "queued", 0})
+	}
+	njobs := len(jobs)
+	for njobs > 0 {
+		for i, job := range jobs {
+			if job.Status != "done" {
+				f, err := ReadMopacOut(job)
+				switch err {
+				case nil:
+					fvec[i] = energies[i] - f.(float64)*cm1ev
+					job.Status = "done"
+					njobs -= 1
+				case errFilesNotFound:
+					continue
+				case errTooManyRetries:
+					log.Fatal(err)
 				}
 			}
-			time.Sleep(1000 * time.Millisecond)
 		}
-		inp.Param.Write("inp/" + paramsfile)
 	}
-
-	biggsNumJac := lm.NumJac{Func: LossFunction}
-	biggsProb := lm.LMProblem{
-		Dim:        inp.Nparam,
-		Size:       inp.Nstruct,
-		Func:       LossFunction,
-		Jac:        biggsNumJac.Jac,
-		InitParams: inp.Param.Values,
-		Tau:        1e-3, // 6 -> 3
-		Eps1:       1e-8,
-		Eps2:       1e-8}
-	biggsResults, biggsErr := lm.LM(biggsProb, &lm.Settings{Iterations: 100, ObjectiveTol: 1e-16})
-	fmt.Println(biggsResults)
-	fmt.Println(biggsErr)
+	return
 }
+
+func Enorm(fvec []float64) float64 {
+	sum := 0.0
+	for _, v := range fvec {
+		sum += math.Pow(v, 2)
+	}
+	return math.Sqrt(sum)
+}
+
+func Lmdif(inp Input, energies []float64, geom [][]float64) {
+	// fvec := Fcn(inp, energies, geom)
+	// fnorm := Enorm(fvec)
+}
+
+func Fdjac2(inp *Input, energies []float64, geom [][]float64, fvec []float64) [][]float64 {
+	fjac := make([][]float64, len(fvec))
+	for k, _ := range fjac {
+		fjac[k] = make([]float64, len(inp.Param.Values))
+	}
+	for j, _ := range inp.Param.Values {
+		temp := inp.Param.Values[j]
+		h := eps * math.Abs(temp)
+		inp.Param.Values[j] = inp.Param.Values[j] + h
+		wa := Fcn(inp, energies, geom)
+		inp.Param.Values[j] = temp
+		for i, _ := range fvec {
+			fjac[i][j] = (wa[i] - fvec[i]) / h
+		}
+	}
+	return fjac
+
+}
+
+// func main() {
+// 	inp := ReadInp("new.inp")
+// 	geom := ReadGeoms("file07")
+// 	energies := ReadEnergies("energy.dat")
+// 	energyVector := mat.NewVecDense(len(energies), energies)
+// 	emin := mat.Min(energyVector)
+// 	for i, _ := range energies {
+// ab initio energies now in wavenumbers
+// 		energies[i] = (energies[i] - emin) * cm1
+// 	}
+
+// fcn -> Lossfunction
+// fortran fcn is my lossfunction
+// }

@@ -31,7 +31,7 @@ type Parameters struct {
 	Values  []float64
 }
 
-func (p Parameters) Write(filename string) error {
+func (p *Parameters) Write(filename string) error {
 	var n int
 	var e error
 	infile, err := os.OpenFile(filename,
@@ -243,9 +243,6 @@ func MakeMopacIn(inp Input, geom []float64) (mopfile []string) {
 
 func WriteMopacIn(inp Input, geom []float64, n int) string {
 	err := os.Mkdir("inp", 0755)
-	// if err != nil {
-	// 	log.Println("Warning: directory 'inp' exists, overwriting")
-	// }
 	lines := MakeMopacIn(inp, geom)
 	writelines := strings.Join(lines, "\n")
 	filename := BaseMopFilename + fmt.Sprintf("%05d.mop", n)
@@ -259,11 +256,17 @@ func WriteMopacIn(inp Input, geom []float64, n int) string {
 func SlurmSubmit(filename string) int {
 	cmd := exec.Command("sbatch", "--job-name=qff", "--ntasks=1",
 		"--cpus-per-task=1", "--mem=1gb ",
-		"--output=test.out", "--error=test.err",
+		"--output=/dev/null", "--error=/dev/null",
 		"/home/qc/mopac2016/mopac.sh", filename)
 	out, err := cmd.Output()
+	retries := 0
+	for err != nil && retries < 5 {
+		cmd.Run()
+		retries++
+	}
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error: %v and retries (%d) > max retries (5)", err, retries)
+		panic(err)
 	}
 	val := strings.Split(string(out), " ")
 	i, _ := strconv.Atoi(strings.TrimSpace(val[len(val)-1]))
@@ -285,6 +288,7 @@ func ReadMopacOut(job Job) (interface{}, error) {
 				fix := re.ReplaceAllString(line, "E")
 				eline = strings.Split(fix, "=")
 				f, _ := strconv.ParseFloat(eline[len(eline)-1], 64)
+				os.Remove(auxfile)
 				return f, nil // f in ev
 			}
 		}
@@ -293,6 +297,7 @@ func ReadMopacOut(job Job) (interface{}, error) {
 		for _, line := range lines {
 			if strings.Contains(line, "MOPAC DONE") &&
 				job.Retries < maxretries {
+				os.Remove(outfile)
 				return SlurmSubmit(infile),
 					errors.New("Resubmitting job")
 			} else if job.Retries >= maxretries {
