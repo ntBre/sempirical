@@ -57,7 +57,7 @@ func Fcn(inp *Input, energies []float64, geom [][]float64) (fvec []float64) {
 			}
 		}
 	}
-	return
+	return fvec
 }
 
 func Enorm(fvec []float64) float64 {
@@ -90,6 +90,10 @@ func Fdjac2(inp *Input, energies []float64, geom [][]float64, fvec []float64) []
 	}
 	return fjac
 
+}
+
+func Qrfac(fjac [][]float64) {
+	//return work arrays? maybe up to 3 arrays
 }
 
 // func main() {

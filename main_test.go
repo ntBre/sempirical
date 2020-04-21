@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 	"fmt"
+	"gonum.org/v1/gonum/mat"
 )
 
 var testinp = Input{
@@ -223,3 +224,19 @@ func TestSlurmSubmit(t *testing.T) {
 // 		testgeom, fvec)
 // 	fmt.Println(got)
 // }
+
+func TestQrfac(t *testing.T) {
+	// A := [][]float64{{12, -51, 4}, {6, 167, -68}, {-4, 24, -41}}
+	// Ap := []float64{12, -51, 4, 6, 167, -68, -4, 24, -41}
+	Ap2 := []float64{-1, -1, 1, 1, 3, 3, -1, -1, 5, 1, 3, 7}
+	// R := [][]float64{{14, 21, -14}, {0, 175, -70}, {0, 0, -35}}
+	var qr mat.QR
+	var r mat.Dense
+	matA := mat.NewDense(4, 3, Ap2)
+	// got := Qrfac(A)
+	// want := R
+	fmt.Println(matA)
+	qr.Factorize(matA)
+	qr.RTo(&r)
+	fmt.Println(r)
+}
