@@ -273,7 +273,7 @@ func SlurmSubmit(filename string) int {
 	return i
 }
 
-func ReadMopacOut(job Job) (interface{}, error) {
+func ReadMopacOut(job *Job) (interface{}, error) {
 	var eline []string
 	re := regexp.MustCompile(`mop`)
 	auxfile := re.ReplaceAllString(job.Name, "aux")
@@ -298,6 +298,7 @@ func ReadMopacOut(job Job) (interface{}, error) {
 			if strings.Contains(line, "MOPAC DONE") &&
 				job.Retries < maxretries {
 				os.Remove(outfile)
+				job.Retries++
 				return SlurmSubmit(infile),
 					errors.New("Resubmitting job")
 			} else if job.Retries >= maxretries {

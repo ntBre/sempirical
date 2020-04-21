@@ -3,6 +3,8 @@ package main
 import (
 	_ "gonum.org/v1/gonum/mat"
 	"log"
+	"github.com/maorshutman/lm"
+	"fmt"
 	"math"
 )
 
@@ -30,83 +32,59 @@ const (
 	eps               = 1.0e-6 // tolerance
 )
 
-func Fcn(inp *Input, energies []float64, geom [][]float64) (fvec []float64) {
-	inp.Param.Write(paramsfile)
-	var jobs []Job
-	fvec = make([]float64, len(geom))
-	for i, _ := range energies {
-		filename := WriteMopacIn(*inp, geom[i], i+1)
-		jobnum := SlurmSubmit(filename)
-		jobs = append(jobs, Job{filename, jobnum, "queued", 0})
-	}
-	njobs := len(jobs)
-	for njobs > 0 {
-		for i, job := range jobs {
-			if job.Status != "done" {
-				f, err := ReadMopacOut(job)
-				switch err {
-				case nil:
-					fvec[i] = energies[i] - f.(float64)*cm1ev
-					job.Status = "done"
-					njobs -= 1
-				case errFilesNotFound:
-					continue
-				case errTooManyRetries:
-					log.Fatal(err)
+func main() {
+	inp := ReadInp("new.inp")
+	geom := ReadGeoms("file07")
+	energies := ReadEnergies("energy.dat")
+	// why am i using relative energies when the result is not relative
+	// energyVector := mat.NewVecDense(len(energies), energies)
+	// emin := mat.Min(energyVector)
+	// use relative energies
+	// for i, _ := range energies {
+	// 	energies[i] = (energies[i] - emin) * cm1
+	// }
+	Fcn := func(dst, x []float64)  {
+		inp.Param.Values = x
+		inp.Param.Write(paramsfile)
+		var jobs []Job
+		var sqDev float64
+		for i, _ := range energies {
+			filename := WriteMopacIn(inp, geom[i], i+1)
+			jobnum := SlurmSubmit(filename)
+			jobs = append(jobs, Job{filename, jobnum, "queued", 0})
+		}
+		njobs := len(jobs)
+		for njobs > 0 {
+			for i, job := range jobs {
+				if job.Status != "done" {
+					f, err := ReadMopacOut(&job)
+					switch err {
+					case nil:
+						dst[i] = energies[i] - f.(float64)*cm1ev
+						sqDev += math.Pow(dst[i], 2)
+						job.Status = "done"
+						njobs -= 1
+					case errFilesNotFound:
+						continue
+					case errTooManyRetries:
+						log.Fatal(err)
+					}
 				}
 			}
 		}
+		fmt.Println(math.Sqrt(sqDev / float64(inp.Nstruct))) // print rmsd?
 	}
-	return fvec
+	fcnJac := lm.NumJac{Func: Fcn}
+	Prob := lm.LMProblem{
+		Dim: inp.Nparam,
+		Size: inp.Nstruct,
+		Func: Fcn,
+		Jac: fcnJac.Jac,
+		InitParams: inp.Param.Values,
+		Tau: 1e-6,
+		Eps1: 1e-8,
+		Eps2: 1e-8}
+	biggsResults, biggsErr := lm.LM(Prob, &lm.Settings{Iterations: 1, ObjectiveTol: 1e-16})
+	fmt.Println(biggsResults)
+	fmt.Println(biggsErr)
 }
-
-func Enorm(fvec []float64) float64 {
-	sum := 0.0
-	for _, v := range fvec {
-		sum += math.Pow(v, 2)
-	}
-	return math.Sqrt(sum)
-}
-
-func Lmdif(inp Input, energies []float64, geom [][]float64) {
-	// fvec := Fcn(inp, energies, geom)
-	// fnorm := Enorm(fvec)
-}
-
-func Fdjac2(inp *Input, energies []float64, geom [][]float64, fvec []float64) [][]float64 {
-	fjac := make([][]float64, len(fvec))
-	for k, _ := range fjac {
-		fjac[k] = make([]float64, len(inp.Param.Values))
-	}
-	for j, _ := range inp.Param.Values {
-		temp := inp.Param.Values[j]
-		h := eps * math.Abs(temp)
-		inp.Param.Values[j] = inp.Param.Values[j] + h
-		wa := Fcn(inp, energies, geom)
-		inp.Param.Values[j] = temp
-		for i, _ := range fvec {
-			fjac[i][j] = (wa[i] - fvec[i]) / h
-		}
-	}
-	return fjac
-
-}
-
-func Qrfac(fjac [][]float64) {
-	//return work arrays? maybe up to 3 arrays
-}
-
-// func main() {
-// 	inp := ReadInp("new.inp")
-// 	geom := ReadGeoms("file07")
-// 	energies := ReadEnergies("energy.dat")
-// 	energyVector := mat.NewVecDense(len(energies), energies)
-// 	emin := mat.Min(energyVector)
-// 	for i, _ := range energies {
-// ab initio energies now in wavenumbers
-// 		energies[i] = (energies[i] - emin) * cm1
-// 	}
-
-// fcn -> Lossfunction
-// fortran fcn is my lossfunction
-// }
