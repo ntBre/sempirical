@@ -6,6 +6,7 @@ import (
 	"github.com/maorshutman/lm"
 	"fmt"
 	"math"
+	"os"
 )
 
 const (
@@ -43,6 +44,10 @@ func main() {
 	// for i, _ := range energies {
 	// 	energies[i] = (energies[i] - emin) * cm1
 	// }
+	// convert to wavenumbers instead
+	for i, _ := range energies {
+		energies[i] = energies[i] * cm1
+	}
 	Fcn := func(dst, x []float64)  {
 		inp.Param.Values = x
 		inp.Param.Write(paramsfile)
@@ -72,7 +77,10 @@ func main() {
 				}
 			}
 		}
-		fmt.Println(math.Sqrt(sqDev / float64(inp.Nstruct))) // print rmsd?
+		//fmt.Println(math.Sqrt(sqDev / float64(inp.Nstruct))) // print rmsd?
+		f, _ := os.OpenFile("run.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f.WriteString(fmt.Sprintf("%f\n", math.Sqrt(sqDev / float64(inp.Nstruct))))
+		f.Close()
 	}
 	fcnJac := lm.NumJac{Func: Fcn}
 	Prob := lm.LMProblem{
@@ -84,7 +92,7 @@ func main() {
 		Tau: 1e-6,
 		Eps1: 1e-8,
 		Eps2: 1e-8}
-	biggsResults, biggsErr := lm.LM(Prob, &lm.Settings{Iterations: 1, ObjectiveTol: 1e-16})
+	biggsResults, biggsErr := lm.LM(Prob, &lm.Settings{Iterations: 100, ObjectiveTol: 1e-16})
 	fmt.Println(biggsResults)
 	fmt.Println(biggsErr)
 }
