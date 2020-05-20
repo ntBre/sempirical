@@ -1,98 +1,83 @@
 package main
 
 import (
-	_ "gonum.org/v1/gonum/mat"
-	"log"
-	"github.com/maorshutman/lm"
 	"fmt"
-	"math"
+	"gonum.org/v1/gonum/mat"
+	"io/ioutil"
 	"os"
+	"strings"
 )
 
 const (
-	nparam            = "NPARAM"
-	method            = "METHOD"
-	nmolec            = "NMOLEC"
-	charge            = "CHARGE"
-	nstruct           = "NSTRUCT"
-	efile             = "EFILE"
-	gfile             = "GFILE"
-	units             = "UNITS"
-	geometry          = "GEOMETRY"
-	parameters        = "PARAMS"
-	threads           = 1            // number of threads in mopac input
-	scfcrt            = "1.D-21"     // scf convergence criteria for mopac inp
-	auxprcsn          = 9            // aux precision in mopac inp
-	paramsfile        = "params.dat" // file for current mopac params
-	BaseMopFilename   = "inp/Structure"
-	cm1               = 219474.5459784 // wavenumbers per hartree
-	cm1ev             = 8065.541154    //wavenumbers per ev
-	maxretries        = 3              // max number of times to try running mopac
-	errTooManyRetries = MopacErr("Too many retries")
-	errFilesNotFound  = MopacErr(".aux and .out files not found")
-	eps               = 1.0e-6 // tolerance
+	energyLine      = "TOTAL_ENERGY:EV="
+	mopacTerminated = "not sure what this is yet"
+	EVperHt         = 27.211385 // from http://www.ilpi.com/msds/ref/energyunits.html
 )
 
+var (
+	Input [Nkeys]string
+)
+
+func MakeInp() {
+	if _, err := os.Stat("inp/"); os.IsNotExist(err) {
+		os.Mkdir("inp", 0755)
+	} else {
+		os.RemoveAll("inp/")
+		os.Mkdir("inp", 0755)
+	}
+}
+
+func WriteParams() {
+	ioutil.WriteFile("params.dat", []byte(Input[Params]), 0755)
+}
+
 func main() {
-	inp := ReadInp("new.inp")
-	geom := ReadGeoms("file07")
-	energies := ReadEnergies("energy.dat")
-	// why am i using relative energies when the result is not relative
-	// energyVector := mat.NewVecDense(len(energies), energies)
-	// emin := mat.Min(energyVector)
-	// use relative energies
-	// for i, _ := range energies {
-	// 	energies[i] = (energies[i] - emin) * cm1
-	// }
-	// convert to wavenumbers instead
-	for i, _ := range energies {
-		energies[i] = energies[i] * cm1
+	// read input
+	ParseInfile("new.inp")
+	geoms := ReadGfile(Input[Gfile])
+	names := GetAtomNames()
+	mop := Mopac{}
+	queue := Slurm{}
+	toRead := make([]string, 0)
+	// write mopac input files
+	WriteParams() // need to update this on each iteration
+	MakeInp()
+	for i, geom := range geoms {
+		filename := fmt.Sprintf("inp/Structure%05d", i)
+		toRead = append(toRead, filename)
+		mop.WriteIn(filename+".mop", names, strings.Fields(geom))
+		// run mopac
+		queue.Write(filename+".pbs", filename+".mop")
+		queue.Submit(filename + ".pbs")
 	}
-	Fcn := func(dst, x []float64)  {
-		inp.Param.Values = x
-		inp.Param.Write(paramsfile)
-		var jobs []Job
-		var sqDev float64
-		for i, _ := range energies {
-			filename := WriteMopacIn(inp, geom[i], i+1)
-			jobnum := SlurmSubmit(filename)
-			jobs = append(jobs, Job{filename, jobnum, "queued", 0})
+	// gather energies
+	// expect -153.486630272141 from CCSD(T)-F12/cc-pVDZ-F12 calculation
+	energies := make([]float64, 0)
+	for i, file := range toRead {
+		energy, err := mop.ReadOut(file + ".aux")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, i)
+			panic(err)
 		}
-		njobs := len(jobs)
-		for njobs > 0 {
-			for i, job := range jobs {
-				if job.Status != "done" {
-					f, err := ReadMopacOut(&job)
-					switch err {
-					case nil:
-						dst[i] = energies[i] - f.(float64)*cm1ev
-						sqDev += math.Pow(dst[i], 2)
-						job.Status = "done"
-						njobs -= 1
-					case errFilesNotFound:
-						continue
-					case errTooManyRetries:
-						log.Fatal(err)
-					}
-				}
-			}
-		}
-		//fmt.Println(math.Sqrt(sqDev / float64(inp.Nstruct))) // print rmsd?
-		f, _ := os.OpenFile("run.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(fmt.Sprintf("%f\n", math.Sqrt(sqDev / float64(inp.Nstruct))))
-		f.Close()
+		energies = append(energies, energy)
 	}
-	fcnJac := lm.NumJac{Func: Fcn}
-	Prob := lm.LMProblem{
-		Dim: inp.Nparam,
-		Size: inp.Nstruct,
-		Func: Fcn,
-		Jac: fcnJac.Jac,
-		InitParams: inp.Param.Values,
-		Tau: 1e-6,
-		Eps1: 1e-8,
-		Eps2: 1e-8}
-	biggsResults, biggsErr := lm.LM(Prob, &lm.Settings{Iterations: 100, ObjectiveTol: 1e-16})
-	fmt.Println(biggsResults)
-	fmt.Println(biggsErr)
+	eVec := mat.NewVecDense(len(energies), energies)
+	eVec.ScaleVec(1/EVperHt, eVec)
+	fmt.Println(eVec)
+/* Jacobian
+let DEi = | (ab initio Ei) - (semi empirical Ei) |
+let Pj = parameter j
+J = [dDEi/dPj]
+J = [dDE1/dP1 ... dDE1/dPn
+      ...      .   ...
+     dDEm/dP1 ... dDEm/dPn]
+so to calculate the jacobian matrix, step each parameter Pj,
+calculate the energy change in each DE, and that gives a column of J
+calculate Jij by central differences:
+1. calcule DEi(pj + delta), DEi(pj - delta)
+2. dDEi = DEi(pj+delta) - DEi(pj-delta) / (2*delta)
+delta P is given by some other delta * (1+|pj|), scale delta by the size of pj
+want to use Broyden's method to not evaluate this jacobian all the time
+*/
+	// adjust parameters
 }
