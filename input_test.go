@@ -6,10 +6,6 @@ import (
 )
 
 func TestParseInfile(t *testing.T) {
-	var blank [Nkeys]string
-	if !reflect.DeepEqual(blank, Input) {
-		t.Errorf("Non-blank input to begin")
-	}
 	ParseInfile("new.inp")
 	filled := [Nkeys]string{
 		"27", "PM6", "1", "1", "10353", "energy.dat", "file07", "ANGSTROMS",
@@ -62,7 +58,7 @@ func TestGetAtomNames(t *testing.T) {
 }
 
 func TestReadGfile(t *testing.T) {
-	got := ReadGfile("min07")
+	got := ReadGfile("testfiles/min07")
 	want := []string{
 		"0.0000000000        0.0000000000       -5.0705374640\n" +
 			"0.0000000000        0.0000000000       -3.0439358050\n" +
@@ -80,5 +76,35 @@ func TestReadGfile(t *testing.T) {
 			"0.0053955418        3.1386119859        2.5134440370\n"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %q, wanted %q\n", got, want)
+	}
+}
+
+func TestFloatParams(t *testing.T) {
+	params, headers := FloatParams()
+	want := []float64{
+		0.02418400, 0.04630200, 0.21650600,
+		0.71732200, 0.81351000, 1.02780600,
+		10.77832600, -11.24695800, 11.52813400,
+		1.26864100, 13.33551900, 1.33395900,
+		14.44868600, -15.38523600, 1.70284100,
+		1.78601100, 2.04755800, 2.10020600,
+		2.24358700, 2.61371300, 3.05595300,
+		3.54094200, -39.93792000, -51.08965300,
+		-7.47192900, -8.35298400, 9.48621200}
+	if !reflect.DeepEqual(params, want) {
+		t.Errorf("got %v, wanted %v\n", params, want)
+	}
+	want2 := []string{
+		"FN11 H", "FN11 C", "XFAC_C H",
+		"HSP C", "XFAC_C C", "ALPB_C H",
+		"GPP C", "USS H", "GSP C",
+		"ZS H", "GSS C", "FN31 C",
+		"GSS H", "BETAS C", "ZP C",
+		"FN31 H", "ZS C", "FN21 C",
+		"XFAC_H H", "ALPB_C C", "FN21 H",
+		"ALPB_H H", "UPP C", "USS C",
+		"BETAP C", "BETAS H", "GP2 C"}
+	if !reflect.DeepEqual(headers, want2) {
+		t.Errorf("got %q, wanted %q\n", headers, want2)
 	}
 }

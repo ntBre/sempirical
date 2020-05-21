@@ -1,0 +1,28 @@
+* TODO implement Broyden's method to limit number of Jacobian calculations
+
+* TODO determine convergence criteria
+
+* TODO determine suitable lambda value and include in calculation
+
+* TODO determine how to assess if a step was successful, and what to do otherwise
+  - something about chi^2 in the reading I found
+
+Jacobian
+let DEi = | (ab initio Ei) - (semi empirical Ei) |
+let Pj = parameter j
+J = [dDEi/dPj]
+J = [dDE1/dP1 ... dDE1/dPn
+	...    .   ...
+     dDEm/dP1 ... dDEm/dPn]
+so to calculate the jacobian matrix, step each parameter Pj,
+calculate the energy change in each DE, and that gives a column of J
+calculate Jij by central differences:
+1. calcule DEi(pj + delta), DEi(pj - delta)
+2. dDEi = DEi(pj+delta) - DEi(pj-delta) / (2*delta)
+delta P is given by some other delta * (1+|pj|), scale delta by the size of pj
+want to use Broyden's method to avoid evaluating this jacobian all the time
+	
+* Ideas
+** warnings if keywords are not found in input
+  - Warning: keyword charge not found, assuming 0 etc
+  - also add default values if I do this

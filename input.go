@@ -2,6 +2,7 @@ package main
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -83,9 +84,22 @@ func GetAtomNames() (names []string) {
 	}
 	return
 }
-			
+
 func ReadGfile(filename string) []string {
 	lines := strings.Join(ReadFile(filename), "\n")
 	// skip empty string before first split
 	return strings.Split(lines, "# GEOMUP #################\n")[1:]
+}
+
+func FloatParams() (params []float64, headers []string) {
+	lines := strings.Split(Input[Params], "\n")
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) >= 3 {
+			f, _ := strconv.ParseFloat(string(fields[2]), 64)
+			headers = append(headers, strings.Join(fields[:2], " "))
+			params = append(params, f)
+		}
+	}
+	return
 }

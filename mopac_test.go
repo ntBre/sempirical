@@ -6,10 +6,6 @@ import (
 	"testing"
 )
 
-var (
-	mop = Mopac{}
-)
-
 func TestMakeHead(t *testing.T) {
 	got := mop.MakeHead()
 	want := []string{"threads=1 XYZ ANGSTROMS scfcrt=1.D-21 aux(precision=9)" +
@@ -22,7 +18,7 @@ func TestMakeHead(t *testing.T) {
 
 func TestMakeIn(t *testing.T) {
 	names := GetAtomNames()
-	coords := strings.Fields(ReadGfile("min07")[0])
+	coords := strings.Fields(ReadGfile("testfiles/min07")[0])
 	got := mop.MakeIn(names, coords)
 	want := []string{"threads=1 XYZ ANGSTROMS scfcrt=1.D-21 aux(precision=9)" +
 		" external=params.dat 1SCF charge=1 PM6",
@@ -40,6 +36,24 @@ func TestMakeIn(t *testing.T) {
 }
 
 func TestReadOut(t *testing.T) {
+	t.Run("file not found", func(t *testing.T) {
+		_, err := mop.ReadOut("testfiles/not_a_real_file.aux")
+		if err != ErrFileNotFound {
+			t.Errorf("got %s, wanted %s\n", err, ErrFileNotFound)
+		}
+	})
+	t.Run("blank file", func(t *testing.T) {
+		_, err := mop.ReadOut("testfiles/blank.aux")
+		if err != ErrBlankOutput {
+			t.Errorf("got %s, wanted %s\n", err, ErrBlankOutput)
+		}
+	})
+	t.Run("one line error", func(t *testing.T) {
+		_, err := mop.ReadOut("testfiles/e1line.aux")
+		if err != ErrFileContainsError {
+			t.Errorf("got %s, wanted %s\n", err, ErrFileContainsError)
+		}
+	})
 	t.Run("energy found", func(t *testing.T) {
 		got, err := mop.ReadOut("testfiles/test.aux")
 		want := 0.277615868297292e+78
