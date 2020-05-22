@@ -91,8 +91,10 @@ func ReadGfile(filename string) []string {
 	return strings.Split(lines, "# GEOMUP #################\n")[1:]
 }
 
-func FloatParams() (params []float64, headers []string) {
-	lines := strings.Split(Input[Params], "\n")
+// Convert a string of parameters into separate floating point values
+// and their associated headers
+func FloatParams(p string) (params []float64, headers []string) {
+	lines := strings.Split(p, "\n")
 	for _, line := range lines {
 		fields := strings.Fields(line)
 		if len(fields) >= 3 {

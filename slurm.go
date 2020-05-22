@@ -34,12 +34,13 @@ func (s Slurm) Write(qfile, chemfile string) {
 	}
 }
 
-func (s Slurm) Submit(filename string) {
-	_, err := exec.Command("sbatch", filename).Output()
+func (s Slurm) Submit(filename string) string {
+	out, err := exec.Command("sbatch", filename).Output()
 	// have to use sbatch because srun grabs a whole node
 	// and runs interactively
 	for err != nil {
 		time.Sleep(time.Second)
-		_, err = exec.Command("sbatch", filename).Output()
+		out, err = exec.Command("sbatch", filename).Output()
 	}
+	return string(out)
 }

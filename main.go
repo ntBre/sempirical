@@ -6,12 +6,13 @@ import (
 	"os"
 	"strings"
 
-	"io"
 	"math"
 
 	"strconv"
 
 	"time"
+
+	"bytes"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -21,6 +22,8 @@ const (
 	mopacTerminated = "not sure what this is yet"
 	EVtoHt          = 1 / 27.211385 // from http://www.ilpi.com/msds/ref/energyunits.html
 	delta           = 1e-8          // roughly the same as from fortran
+	maxIter         = 1
+	lambda0         = 1.0 // initial levenberg-marquardt damping parameter
 )
 
 var (
@@ -31,6 +34,8 @@ var (
 	abInit       []float64
 	initParams   []float64
 	paramHeaders []string
+	lambda       = lambda0
+	nu           = 1.1
 )
 
 // Create the directory inp if it does not exist
@@ -118,48 +123,151 @@ func init() {
 	MakeInp()
 	jobs = WriteInfiles(ReadGfile(Input[Gfile]), GetAtomNames())
 	abInit = AbEnergies(Input[Efile])
-	initParams, paramHeaders = FloatParams()
+	initParams, paramHeaders = FloatParams(Input[Params])
 }
 
-func SaveJac(jac *mat.Dense) {
-	f, err := os.Create("jac.dat")
-	if err != nil {
+// generate the nxn identity matrix
+func Eye(n int) *mat.Dense {
+	m := mat.NewDense(n, n, nil)
+	for i := 0; i < n; i++ {
+		m.Set(i, i, 1.0)
+	}
+	return m
+}
+
+// return a diagonal matrix corresponding to the diagonal
+// of the input
+func Diag(m *mat.Dense) *mat.Dense {
+	r, c := m.Caps()
+	if r != c {
+		err := "diag: Input matrix is not square, aborting"
 		panic(err)
 	}
-	PlotData(len(jobs), len(Input[Params]), jac, f)
-	f.Close()
+	n := mat.NewDense(r, c, nil)
+	for i := 0; i < r; i++ {
+		n.Set(i, i, m.At(i, i))
+	}
+	return n
 }
 
-func main() {
-	nparam := len(initParams)
-	nstruct := len(jobs)
-	// "convergence criteria"
-	maxIter := 1
+// Pretty print a mat.Dense matrix
+func PrettyPrint(m *mat.Dense) string {
+	r, c := m.Caps()
+	var buf bytes.Buffer
+	for i := 0; i < r; i++ {
+		for j := 0; j < c; j++ {
+			fmt.Fprintf(&buf, "%g", m.At(i, j))
+			if j != c-1 {
+				fmt.Fprint(&buf, " ")
+			}
+		}
+		fmt.Fprint(&buf, "\n")
+	}
+	return buf.String()
+}
 
-	// J^t J h = J^T[y-f(B)]
-	// where J is the Jacobian, h is the step,
-	// y is the exact solution, and f(B) is
-	// the evaluation of f at the parameter vector B
-	params := initParams
+// calculate the root-mean-square for a mat.Dense column vector
+func ColRMS(m *mat.Dense) float64 {
+	r, _ := m.Caps()
+	var total float64
+	for i := 0; i < r; i++ {
+		val := m.At(i, 0)
+		total += val * val
+	}
+	mean := total / float64(r)
+	return math.Sqrt(mean)
+}
+
+// returning the backing slice for a mat.Dense
+func DenseSlice(m *mat.Dense) []float64 {
+	r, c := m.Caps()
+	params := make([]float64, 0)
+	for i := 0; i < r; i++ {
+		for j := 0; j < c; j++ {
+			params = append(params, m.At(i, j))
+		}
+	}
+	return params
+}
+
+// Add two float64 slices
+func AddSlice(a, b []float64) (sum []float64) {
+	la, lb := len(a), len(b)
+	if la != lb {
+		err := fmt.Sprintf("AddSlice: slices have different lengths,"+
+			" aborting. len(a): %d, len(b): %d\n", la, lb)
+		panic(err)
+	}
+	for i := range a {
+		sum = append(sum, a[i]+b[i])
+	}
+	return
+}
+
+// Minimize the difference between the semi-empirical
+// and ab initio energies by varying the empirical
+// parameters with the Levenberg-Marquardt algorithm
+func LevMar(nparam, nstruct int, params []float64) {
+	var newparams []float64
 	for i := 0; i < maxIter; i++ {
 		// semi-empirical energy column vector
 		fB := mat.NewDense(nstruct, 1, SEnergy(params))
 		// ab initio column vector
 		y := mat.NewDense(nstruct, 1, abInit)
-		jac := Jacobian(params)
-		A := mat.NewDense(nparam, nparam, nil)
-		b := mat.NewDense(1, nstruct, nil)
-		// A = jac^T jac + lambda I <- neglecting this for now
-		A.Mul(jac.T(), jac)
-		// b = jac^T*[y - fB]
+		b := mat.NewDense(nstruct, 1, nil)
 		b.Sub(y, fB)
-		b.Mul(jac.T(), b)
+		rmsd := ColRMS(b)
+		fmt.Println("initial rmsd:", rmsd)
+		jac := Jacobian(params)
+		jacT := mat.DenseCopyOf(jac.T())
+		A := mat.NewDense(nparam, nparam, nil)
+		// A = jac^T jac + lambda diag(jac^t jac)
+		JTJ := mat.NewDense(nparam, nparam, nil)
+		// lambda * diag(jac^t jac)
+		ld := Diag(JTJ)
+		ld.Scale(lambda, ld)
+		JTJ.Mul(jacT, jac)
+		A.Add(JTJ, ld)
+		// b = jac^T*[y - fB]
+		RHS := mat.NewDense(nparam, 1, nil)
+		RHS.Mul(jacT, b)
+		fmt.Println(PrettyPrint(RHS))
 		step := mat.NewDense(nparam, 1, nil)
+		fmt.Println(PrettyPrint(step))
 		// Solve Ax = b for x, which is our step in the parameters
-		step.Solve(A, b)
-		// add step to params
-		// calculate new energy
+		step.Solve(A, RHS)
+		fmt.Println("params, step:", params, step)
+		newparams = AddSlice(params, DenseSlice(step))
+		fmt.Println("new params:", newparams)
+		fBnew := mat.NewDense(nstruct, 1, SEnergy(newparams))
+		bnew := mat.NewDense(nstruct, 1, nil)
+		bnew.Sub(y, fBnew)
+		fmt.Println("final rmsd:", ColRMS(bnew))
+		// update lambda and nu:
+		// try step with lambda, and lambda/nu
+		// if neither is better, try lambda*nu^k until improves
+		// with k increasing on each attempt
+		// lambda becomes whatever is successful
+		// broyden update (eq 19 from lm.pdf):
+		// J = J + ((fBnew - fB - J*step)*step^T)/(step^T*step)
+		// lm.pdf says only calculate the jacobian directly on:
+		// - the first iteration
+		// -- if i == 0
+		// - every 2n iterations, where n is # parameters
+		// -- if i % 2nparam == 0
+		// - iterations where rmsd increases
+		// -- if rmsdNew > rmsd
+		// if fBnew "better" than before keep the step
+		// fmt.Printf("%v, %v, %v, %v, %v, %v\n", fB, y, jac, A, b, step)
 	}
+}
+
+func main() {
+	// J^t J h = J^T[y-f(B)]
+	// where J is the Jacobian, h is the step,
+	// y is the exact solution, and f(B) is
+	// the evaluation of f at the parameter vector B
+	LevMar(len(initParams), len(jobs), initParams)
 }
 
 // Calculate the semi-empirical energy as a function of params
@@ -193,14 +301,4 @@ func Jacobian(params []float64) (jac *mat.Dense) {
 		jac.SetCol(col, diff)
 	}
 	return
-}
-
-func PlotData(nstruct, nparam int, jac *mat.Dense, w io.Writer) {
-	var lines string
-	for i := 0; i < nstruct; i++ {
-		for j := 0; j < nparam; j++ {
-			lines += fmt.Sprintf("%5d%5d%20.12f\n", i, j, jac.At(i, j))
-		}
-	}
-	w.Write([]byte(lines))
 }

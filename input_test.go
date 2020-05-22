@@ -80,7 +80,7 @@ func TestReadGfile(t *testing.T) {
 }
 
 func TestFloatParams(t *testing.T) {
-	params, headers := FloatParams()
+	params, headers := FloatParams(Input[Params])
 	want := []float64{
 		0.02418400, 0.04630200, 0.21650600,
 		0.71732200, 0.81351000, 1.02780600,

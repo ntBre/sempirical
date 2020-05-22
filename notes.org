@@ -1,3 +1,7 @@
+* TODO start using a smaller test set, geez
+
+* TODO concurrency as much as possible, definitely in submit, probably in readout
+
 * TODO implement Broyden's method to limit number of Jacobian calculations
 
 * TODO determine convergence criteria

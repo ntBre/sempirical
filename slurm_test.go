@@ -33,3 +33,11 @@ func TestMakeSlurm(t *testing.T) {
 		t.Errorf("got %v, wanted %v\n", got, want)
 	}
 }
+
+func TestSubmit(t *testing.T) {
+	got := slurm.Submit("test")
+	want := "test"
+	if got != want {
+		t.Errorf("got %v, wanted %v\n", got, want)
+	}
+}
