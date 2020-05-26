@@ -1,14 +1,11 @@
-* TODO start using a smaller test set, geez
-
+* TODO limit steps that can be taken, or at least undo step if error in output
+  - sign change for example, as Josh mentioned
+* TODO limit for loop other than just checking the rmsd
 * TODO concurrency as much as possible, definitely in submit, probably in readout
-
-* TODO implement Broyden's method to limit number of Jacobian calculations
-
+* DONE implement Broyden's method to limit number of Jacobian calculations
 * TODO determine convergence criteria
-
-* TODO determine suitable lambda value and include in calculation
-
-* TODO determine how to assess if a step was successful, and what to do otherwise
+* DONE determine suitable lambda value and include in calculation
+* DONE determine how to assess if a step was successful, and what to do otherwise
   - something about chi^2 in the reading I found
 
 Jacobian
@@ -30,3 +27,20 @@ want to use Broyden's method to avoid evaluating this jacobian all the time
 ** warnings if keywords are not found in input
   - Warning: keyword charge not found, assuming 0 etc
   - also add default values if I do this
+
+		update lambda and nu:
+		try step with lambda, and lambda/nu
+		if neither is better, try lambda*nu^k until improves
+		with k increasing on each attempt
+		lambda becomes whatever is successful
+		broyden update (eq 19 from lm.pdf):
+		J = J + ((fBnew - fB - J*step)*step^T)/(step^T*step)
+		lm.pdf says only calculate the jacobian directly on:
+		- the first iteration
+		-- if i == 0
+		- every 2n iterations, where n is # parameters
+		-- if i % 2nparam == 0
+		- iterations where rmsd increases
+		-- if rmsdNew > rmsd
+		if fBnew "better" than before keep the step
+		fmt.Printf("%v, %v, %v, %v, %v, %v\n", fB, y, jac, A, b, step)

@@ -25,8 +25,8 @@ func TestMakeParams(t *testing.T) {
 	// rely on FloatParams working
 	params, headers := FloatParams(Input[Params])
 	got := MakeParams(params[:2], headers[:2])
-	want := "FN11 H      0.024184000000\n" +
-		"FN11 C      0.046302000000\n"
+	want := "FN11 H           0.024184000000\n" +
+		"FN11 C           0.046302000000\n"
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, wanted %v\n", got, want)
 	}

@@ -22,8 +22,8 @@ const (
 	mopacTerminated = "not sure what this is yet"
 	EVtoHt          = 1 / 27.211385 // from http://www.ilpi.com/msds/ref/energyunits.html
 	delta           = 1e-8          // roughly the same as from fortran
-	maxIter         = 1
-	lambda0         = 1.0 // initial levenberg-marquardt damping parameter
+	maxIter         = 5
+	lambda0         = 1e-8 // initial levenberg-marquardt damping parameter
 )
 
 var (
@@ -52,7 +52,7 @@ func MakeInp() {
 // Build the parameters file from the separate parameters and their headers
 func MakeParams(params []float64, headers []string) (lines string) {
 	for i := range params {
-		lines += fmt.Sprintf("%s%20.12f\n", headers[i], params[i])
+		lines += fmt.Sprintf("%s%25.12f\n", headers[i], params[i])
 	}
 	return
 }
@@ -93,12 +93,13 @@ func ReadEnergies(files []string) []float64 {
 		energy, err := mop.ReadOut(file + ".aux")
 		for err != nil {
 			// assume problem from reading before energy present
-			fmt.Fprintln(os.Stderr, file+".aux", err, "sleeping")
 			time.Sleep(time.Second)
 			// convert to hartrees here
 			energy, err = mop.ReadOut(file + ".aux")
 		}
 		energies = append(energies, energy*EVtoHt)
+		// assure we are looking at the new files each time
+		os.Remove(file + ".aux")
 		// this, with passing in energies and file
 		// would have to use a fully made slice for this and keep track of the
 		// file numbers, since they would no longer come out in order
@@ -204,61 +205,140 @@ func AddSlice(a, b []float64) (sum []float64) {
 	return
 }
 
+// Update the Jacobian using Broyden's method
+// jac = jac + ((seColnew - seCol - jac*step)*step^T)/(step^T*step)
+func Broyden(nstruct, nparam int, jac, step, seColnew, seCol *mat.Dense) *mat.Dense {
+	diff := mat.NewDense(nstruct, 1, nil)
+	tempJac := mat.DenseCopyOf(jac)
+	// j*step
+	prod := mat.NewDense(nstruct, 1, nil)
+	prod.Mul(tempJac, step)
+	// fBnew - fb
+	diff.Sub(seColnew, seCol)
+	// fBnew - fB - J*step
+	diff.Sub(diff, prod)
+	// (fBnew - fB - j*step)*step^T
+	prod2 := mat.NewDense(nstruct, nparam, nil)
+	prod2.Mul(diff, step.T())
+	num := mat.NewDense(1, 1, nil)
+	num.Mul(step.T(), step)
+	// num should be 1 by 1, so take first element in slice version
+	prod2.Scale(1/DenseSlice(num)[0], prod2)
+	jac.Add(jac, prod2)
+	return jac
+}
+
+// Calculate new parameter values based on the Levenberg-Marquardt algorithm.
+// b is the righthand side of Ax=b, where x are the parameters.
+// b = J^T * [y - f(B)], where y is the exact solution and f(B) is
+// the function of the parameters
+func NewParams(nstruct, nparam int, lscale float64, params []float64,
+	b, jacTjac *mat.Dense) (newparams []float64, step *mat.Dense) {
+
+	ld := Eye(nparam)
+	ld.Scale(lscale, ld)
+	A := mat.NewDense(nparam, nparam, nil)
+	A.Add(jacTjac, ld)
+	step = mat.NewDense(nparam, 1, nil)
+	err := step.Solve(A, b)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
+	return AddSlice(params, DenseSlice(step)), step
+}
+
+// Calculate the RMSD associated with a set of parameters
+func RMSD(nstruct int, params []float64,
+	seCol, aiCol *mat.Dense) (rmsd float64, diff *mat.Dense) {
+
+	diff = mat.NewDense(nstruct, 1, nil)
+	diff.Sub(aiCol, seCol)
+	return ColRMS(diff), diff
+}
+
 // Minimize the difference between the semi-empirical
 // and ab initio energies by varying the empirical
 // parameters with the Levenberg-Marquardt algorithm
 func LevMar(nparam, nstruct int, params []float64) {
-	var newparams []float64
+
+	var (
+		jac      *mat.Dense
+		seCol    *mat.Dense
+		seColnew *mat.Dense
+		step     *mat.Dense
+	)
+
+	// ab initio energy column vector
+	aiCol := mat.NewDense(nstruct, 1, abInit)
+
 	for i := 0; i < maxIter; i++ {
-		// semi-empirical energy column vector
-		fB := mat.NewDense(nstruct, 1, SEnergy(params))
-		// ab initio column vector
-		y := mat.NewDense(nstruct, 1, abInit)
-		b := mat.NewDense(nstruct, 1, nil)
-		b.Sub(y, fB)
-		rmsd := ColRMS(b)
+
+		// calculate and print the RMSD
+		seCol = mat.NewDense(nstruct, 1, SEnergy(params))
+		rmsd, diff := RMSD(nstruct, params, seCol, aiCol)
 		fmt.Println("initial rmsd:", rmsd)
-		jac := Jacobian(params)
+
+		// every 2n iterations, calculate the Jacobian by finite differences
+		if i%(2*nparam) == 0 {
+			jac = Jacobian(params)
+		} else {
+			// otherwise update by Broyden's method
+			jac = Broyden(nstruct, nparam, jac, step, seColnew, seCol)
+		}
+
+		// jac transpose
 		jacT := mat.DenseCopyOf(jac.T())
-		A := mat.NewDense(nparam, nparam, nil)
-		// A = jac^T jac + lambda diag(jac^t jac)
-		JTJ := mat.NewDense(nparam, nparam, nil)
-		// lambda * diag(jac^t jac)
-		ld := Diag(JTJ)
-		ld.Scale(lambda, ld)
-		JTJ.Mul(jacT, jac)
-		A.Add(JTJ, ld)
-		// b = jac^T*[y - fB]
-		RHS := mat.NewDense(nparam, 1, nil)
-		RHS.Mul(jacT, b)
-		fmt.Println(PrettyPrint(RHS))
-		step := mat.NewDense(nparam, 1, nil)
-		fmt.Println(PrettyPrint(step))
-		// Solve Ax = b for x, which is our step in the parameters
-		step.Solve(A, RHS)
-		fmt.Println("params, step:", params, step)
-		newparams = AddSlice(params, DenseSlice(step))
-		fmt.Println("new params:", newparams)
-		fBnew := mat.NewDense(nstruct, 1, SEnergy(newparams))
-		bnew := mat.NewDense(nstruct, 1, nil)
-		bnew.Sub(y, fBnew)
-		fmt.Println("final rmsd:", ColRMS(bnew))
-		// update lambda and nu:
-		// try step with lambda, and lambda/nu
-		// if neither is better, try lambda*nu^k until improves
-		// with k increasing on each attempt
-		// lambda becomes whatever is successful
-		// broyden update (eq 19 from lm.pdf):
-		// J = J + ((fBnew - fB - J*step)*step^T)/(step^T*step)
-		// lm.pdf says only calculate the jacobian directly on:
-		// - the first iteration
-		// -- if i == 0
-		// - every 2n iterations, where n is # parameters
-		// -- if i % 2nparam == 0
-		// - iterations where rmsd increases
-		// -- if rmsdNew > rmsd
-		// if fBnew "better" than before keep the step
-		// fmt.Printf("%v, %v, %v, %v, %v, %v\n", fB, y, jac, A, b, step)
+
+		// jac transpose jac
+		jacTjac := mat.NewDense(nparam, nparam, nil)
+		jacTjac.Mul(jacT, jac)
+
+		// b = jac^T*[aiCol - seCol]
+		b := mat.NewDense(nparam, 1, nil)
+		b.Mul(jacT, diff)
+
+		// update the parameters
+		newparams, newStep := NewParams(nstruct, nparam, lambda, params, b, jacTjac)
+		newparamsnu, newStepnu := NewParams(nstruct, nparam,
+			lambda/nu, params, b, jacTjac)
+
+		// check rmsd with lambda and lambda/nu dampening
+		newRMSD, _ := RMSD(nstruct, newparams, aiCol,
+			mat.NewDense(nstruct, 1, SEnergy(newparams)))
+		newRMSDnu, _ := RMSD(nstruct, newparamsnu, aiCol,
+			mat.NewDense(nstruct, 1, SEnergy(newparamsnu)))
+
+		// if both are greater, try lambda*nu^k until a k that improves it
+		if newRMSD > rmsd && newRMSDnu > rmsd {
+			tryRMSD := newRMSD
+			tryParams := newparams
+			tryStep := newStep
+			k := 1
+			for tryRMSD > rmsd {
+				prod := 1.0
+				for i := 0; i < k; i++ {
+					prod *= nu
+				}
+				tryParams, tryStep = NewParams(nstruct, nparam, lambda*prod,
+					params, b, jacTjac)
+				tryRMSD, _ = RMSD(nstruct, tryParams, aiCol,
+					mat.NewDense(nstruct, 1, SEnergy(tryParams)))
+				k++
+			}
+			newRMSD = tryRMSD
+			newparams = tryParams
+			newStep = tryStep
+		} else if newRMSDnu < newRMSD {
+			newRMSD = newRMSDnu
+			newparams = newparamsnu
+			newStep = newStepnu
+			lambda = lambda / nu
+		}
+		// else lambda stays the same and use newRMSD as it was
+		fmt.Println("final rmsd:", newRMSD)
+		params = newparams
+		step = newStep
+		seColnew = mat.NewDense(nstruct, 1, SEnergy(params))
 	}
 }
 
