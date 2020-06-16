@@ -1,0 +1,114 @@
+ *******************************************************************************
+ ** Site#: 34238        For non-commercial use only    Version 20.079L 64BITS **
+ *******************************************************************************
+ ** Cite this program as: MOPAC2016, Version: 20.079L, James J. P. Stewart,   **
+ ** Stewart Computational Chemistry, web: HTTP://OpenMOPAC.net. Days left: 299**
+ *******************************************************************************
+ **                                                                           **
+ **                                MOPAC2016                                  **
+ **                                                                           **
+ *******************************************************************************
+
+                              PM6 CALCULATION RESULTS
+
+ *******************************************************************************
+ *  CALCULATION DONE:                                Mon May 25 18:19:23 2020  *
+ *  PM6        - The PM6 Hamiltonian to be used
+ *  A0         - INPUT GEOMETRY IS IN ATOMIC UNITS (A0)
+ *
+ *
+ *
+ *                 CHARGE ON SYSTEM = +1
+ *
+ *
+ *
+ *
+ *  EXTERNAL=n  -  DEFAULT PARAMETERS RESET USING DATA IN FILES: 
+ *                 "params.dat"
+ *  XYZ        - CARTESIAN COORDINATE SYSTEM TO BE USED
+ *  1SCF       - DO 1 SCF AND THEN STOP 
+ *  THREADS=1  - MULTI-THREADING NOT USED
+ *  T=         - A TIME OF 172800.0 SECONDS REQUESTED
+ *  DUMP=N     - RESTART FILE WRITTEN EVERY  7200.000 SECONDS
+ *  SCFCRT     - DEFAULT SCF CRITERION REPLACED BY   0.100E-20
+ *  AUX        - OUTPUT AUXILIARY INFORMATION
+ *******************************************************************************
+threads=1 XYZ A0 scfcrt=1.D-21 aux(precision=9) external=params.dat 1SCF charge=1 PM6
+ MOLECULE # 1
+
+   ATOM   CHEMICAL          X               Y               Z
+  NUMBER   SYMBOL      (ANGSTROMS)     (ANGSTROMS)     (ANGSTROMS)
+ 
+     1       H          0.00000000  *   0.00000000  *  -2.68321286  *
+     2       C          0.00000000  *   0.00000000  *  -1.61078145  *
+     3       C          0.00000000  *   0.00000000  *  -0.37706348  *
+     4       C          0.00000000  *  -0.63661008  *   0.99489960  *
+     5       C          0.00000000  *   0.63661008  *   0.99489960  *
+     6       H          0.00000000  *  -1.66102077  *   1.32996251  *
+     7       H          0.00000000  *   1.66102077  *   1.32996251  *
+ 
+
+
+          CARTESIAN COORDINATES 
+
+    NO.       ATOM           X           Y           Z
+
+     1         H          0.0000      0.0000     -2.6832
+     2         C          0.0000      0.0000     -1.6108
+     3         C          0.0000      0.0000     -0.3771
+     4         C          0.0000     -0.6366      0.9949
+     5         C          0.0000      0.6366      0.9949
+     6         H          0.0000     -1.6610      1.3300
+     7         H          0.0000      1.6610      1.3300
+
+ Parameters read in from file: "params.dat"
+
+
+         Parameters read in
+
+      Parameter Type  Element    Parameter
+            USS           H       -11.580242
+            ZS            H         3.993773
+            BETAS         H       -10.503601
+            GSS           H        13.889392
+            FN11          H         6.768214
+            FN21          H         3.029226
+            FN31          H         2.737909
+            ALPB_H        H         3.550550
+            XFAC_H        H         2.234404
+            USS           C       -52.057072
+            UPP           C       -46.622633
+            ZS            C         0.070541
+            ZP            C       -22.942363
+            BETAS         C       -19.833090
+            BETAP         C       -10.533405
+            GSS           C        13.483066
+            GSP           C        10.019122
+            GPP           C        10.121630
+            GP2           C         8.435733
+            HSP           C         2.208772
+            FN11          C         1.901735
+            FN21          C         2.232584
+            FN31          C         2.098885
+            ALPB_H        C        -3.299009
+            XFAC_H        C         2.506270
+            ALPB_C        C         3.463099
+            XFAC_C        C         0.449694
+  (Parameters are available if SPARKLE is used)
+
+           Data are not available for Carbon.
+
+ ******************************************************************************
+ *                                                                            *
+ *     Error and normal termination messages reported in this calculation     *
+ *                                                                            *
+ *  Data are not available for Carbon.                                        *
+ * JOB ENDED NORMALLY                                                         *
+ *                                                                            *
+ ******************************************************************************
+
+
+
+ TOTAL JOB TIME:             0.01 SECONDS
+
+ == MOPAC DONE ==

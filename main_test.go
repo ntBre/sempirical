@@ -60,6 +60,7 @@ func TestJacobian(t *testing.T) {
 }
 
 func TestLevMar(t *testing.T) {
+	maxIter = 1
 	holdJobs := jobs
 	holdParams := initParams
 	holdAb := abInit

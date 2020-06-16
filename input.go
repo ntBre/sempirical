@@ -74,6 +74,7 @@ func ParseInfile(filename string) {
 	}
 }
 
+// Get the atom names from the input geometry
 func GetAtomNames() (names []string) {
 	lines := strings.Split(Input[Geometry], "\n")
 	for _, line := range lines {
@@ -85,6 +86,7 @@ func GetAtomNames() (names []string) {
 	return
 }
 
+// Read an intder file07 style file and return the geometries
 func ReadGfile(filename string) []string {
 	lines := strings.Join(ReadFile(filename), "\n")
 	// skip empty string before first split

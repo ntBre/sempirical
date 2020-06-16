@@ -1,3 +1,5 @@
+* If you take a bad step, iterate through the steps taken and see which caused it
+  - lots of time and have to save the last parameters somewhere
 * TODO limit steps that can be taken, or at least undo step if error in output
   - sign change for example, as Josh mentioned
 * TODO limit for loop other than just checking the rmsd

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"math"
 	"os"
@@ -25,7 +26,7 @@ var (
 type Mopac struct{}
 
 func (m Mopac) MakeHead() (headLines []string) {
-	return []string{"threads=1 XYZ " + Input[Units] + " scfcrt=1.D-21 aux(precision=9) " +
+	return []string{"threads=1 XYZ " + Input[Units] + " scfcrt=1.D-21 aux(precision=9) SPARKLE " +
 		"external=params.dat 1SCF charge=" + Input[Charge] + " " + Input[Method],
 		"MOLECULE # 1", ""}
 }
@@ -52,7 +53,7 @@ func (m Mopac) WriteIn(filename string, names []string, coords []string) {
 	}
 }
 
-func (m Mopac) ReadOut(filename string) (result float64, err error) {
+func (m Mopac) ReadAux(filename string) (result float64, err error) {
 	// copied from go-cart molpro, update accordingly
 	runtime.LockOSThread()
 	if _, err = os.Stat(filename); os.IsNotExist(err) {
@@ -91,4 +92,21 @@ func (m Mopac) ReadOut(filename string) (result float64, err error) {
 	}
 	runtime.UnlockOSThread()
 	return result, err
+}
+
+// Check a MOPAC output file for existence and errors
+func (m Mopac) CheckOut(filename string) error {
+	runtime.LockOSThread()
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		runtime.UnlockOSThread()
+		return nil
+	}
+	lines := ReadFile(filename)
+	for _, line := range lines {
+		if strings.Contains(strings.ToUpper(line), "ERROR") {
+			return fmt.Errorf("CheckOut: error %q on file %s", ErrFileContainsError,
+				filename)
+		}
+	}
+	return nil
 }
