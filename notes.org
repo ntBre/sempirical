@@ -1,3 +1,5 @@
+* TODO look into bad steps, last rep was running great and then something bad happened
+  - maybe store all params to see what changed to cause it
 * If you take a bad step, iterate through the steps taken and see which caused it
   - lots of time and have to save the last parameters somewhere
 * TODO limit steps that can be taken, or at least undo step if error in output

@@ -104,7 +104,7 @@ func (m Mopac) CheckOut(filename string) error {
 	lines := ReadFile(filename)
 	for _, line := range lines {
 		if strings.Contains(strings.ToUpper(line), "ERROR") {
-			return fmt.Errorf("CheckOut: error %q on file %s", ErrFileContainsError,
+			return fmt.Errorf("CheckOut: error %q in file %s", line,
 				filename)
 		}
 	}

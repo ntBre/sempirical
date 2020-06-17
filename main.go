@@ -27,7 +27,7 @@ const (
 	mopacTerminated = "END OF MOPAC FILE"
 	EVtoHt          = 1 / 27.211385 // from http://www.ilpi.com/msds/ref/energyunits.html
 	delta           = 1e-8          // roughly the same as from fortran
-	epsilon         = 1e-8          // huge error in Ht for now
+	epsilon         = 1e-5          // huge error in Ht for now
 	lambda0         = 1e-2          // from Marquardt63
 	nuDown          = 5
 	nuUp            = 1.5
@@ -46,6 +46,7 @@ var (
 	nu           = 10.0 // from Marquardt63
 	maxIter      = 100
 	logfile, _   = os.Create("semp.log")
+	parlog, _    = os.Create("params.log")
 )
 
 // Create the directory inp if it does not exist
@@ -71,6 +72,7 @@ func MakeParams(params []float64, headers []string) (lines string) {
 func WriteParams(params []float64, headers []string) {
 	lines := MakeParams(params, headers)
 	ioutil.WriteFile("params.dat", []byte(lines), 0755)
+	parlog.Write([]byte(lines + "\n"))
 }
 
 // Write MOPAC input files with the given geometries
@@ -105,7 +107,11 @@ func ReadEnergies(files []string) []float64 {
 			// this indicates a bad step, so should propagate this error
 			// and revise the step higher up
 			if e := mop.CheckOut(file + ".out"); e != nil {
-				panic(e)
+				// assume error caused by bad step so give a very large energy
+				// and log the error
+				fmt.Fprintln(os.Stderr, e)
+				energy, err = 0.0, nil
+				break
 			}
 			if err == ErrFinishedButNoEnergy {
 				panic(err)
@@ -116,7 +122,7 @@ func ReadEnergies(files []string) []float64 {
 		}
 		// convert to hartrees here
 		energies = append(energies, energy*EVtoHt)
-		// assure we are looking at the new files each time
+		// ensure we are looking at the new files each time
 		// should move this outside the closure if I make this a goroutine
 		// to avoid too many sys calls
 		os.Remove(file + ".aux")
@@ -245,11 +251,13 @@ func Broyden(nstruct, nparam int, jac, step, seColnew, seCol *mat.Dense) *mat.De
 	// num should be 1 by 1, so take first element in slice version
 	fmt.Fprintln(logfile, "num: ", DenseSlice(num))
 	fmt.Fprintln(logfile, "jac: ", DenseSlice(jac))
-	prod2.Scale(-1/DenseSlice(num)[0], prod2)
-	// think I just want scaled prod2 as jac, that looks reasonable
-	fmt.Fprintln(logfile, "-prod2: ", DenseSlice(prod2))
-	// jac.Add(jac, prod2)
-	return prod2
+	// think I just want negative scaled prod2 as jac, that looks reasonable
+	// prod2.Scale(-1/DenseSlice(num)[0], prod2)
+	// fmt.Fprintln(logfile, "-prod2: ", DenseSlice(prod2))
+	// return prod2
+	prod2.Scale(1/DenseSlice(num)[0], prod2)
+	jac.Add(jac, prod2)
+	return jac
 }
 
 // Wrapper for calculating new parameters and the RMSD.
@@ -317,9 +325,7 @@ func LevMar(nparam, nstruct int, params []float64) {
 	seCol = mat.NewDense(nstruct, 1, SEnergy(params))
 	rmsd, diff = RMSD(nstruct, params, seCol, aiCol)
 	i := 1
-	// TODO serious convergence criteria
-	// something like 10-8 ht
-	for rmsd > 1.0 && i < maxIter {
+	for rmsd > epsilon && i < maxIter {
 		// calculate and print the RMSD
 		if i > 1 {
 			rmsd = newRMSD
@@ -369,8 +375,8 @@ func LevMar(nparam, nstruct int, params []float64) {
 		fmt.Printf("     Delta: %g\n", newRMSD-rmsd)
 		params = newparams
 		// every 2n iterations, calculate the Jacobian by finite differences
-		// or if broyden is disabled, OR if the change is too small
-		if i%(2*nparam) == 0 || !broyden || math.Abs(rmsd-newRMSD) < epsilon {
+		// or if broyden is disabled
+		if i%(2*nparam) == 0 || !broyden {
 			fmt.Println("running numerical jacobian")
 			jac = Jacobian(params)
 		} else {
@@ -390,6 +396,7 @@ func main() {
 	LevMar(len(initParams), len(jobs), initParams)
 	fmt.Println("exiting")
 	logfile.Close()
+	parlog.Close()
 }
 
 // Calculate the semi-empirical energy as a function of params
