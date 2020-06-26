@@ -2,6 +2,10 @@
 sempirical optimizes semi-empirical parameters in MOPAC to minimize
 the difference between the semi-empirical energies and input ab initio
 energies
+Requires:
+  - new.inp
+  - ab initio energy file, named in new.inp
+  - geometry file, named in new.inp
 */
 package main
 
@@ -26,9 +30,11 @@ const (
 	energyLine      = "TOTAL_ENERGY:EV="
 	mopacTerminated = "END OF MOPAC FILE"
 	EVtoHt          = 1 / 27.211385 // from http://www.ilpi.com/msds/ref/energyunits.html
-	delta           = 1e-8          // roughly the same as from fortran
-	epsilon         = 1e-5          // huge error in Ht for now
-	lambda0         = 1e-2          // from Marquardt63
+	HtToCm          = 219474.5459784
+	EvToCm          = 8065.541154
+	delta           = 1e-8 // roughly the same as from fortran
+	epsilon         = 1e-5 // required convergence in Ht for ~1 cm-1
+	lambda0         = 1e-2 // from Marquardt63
 	nuDown          = 5
 	nuUp            = 1.5
 	broyden         = true // toggle broyden update
@@ -114,7 +120,10 @@ func ReadEnergies(files []string) []float64 {
 				break
 			}
 			if err == ErrFinishedButNoEnergy {
-				panic(err)
+				// also assume this is caused by bad step
+				fmt.Fprintln(os.Stderr, err)
+				energy, err = 0.0, nil
+				break
 			}
 			// else assume problem from reading before energy present
 			time.Sleep(time.Second)
@@ -122,6 +131,8 @@ func ReadEnergies(files []string) []float64 {
 		}
 		// convert to hartrees here
 		energies = append(energies, energy*EVtoHt)
+		// convert to cm-1
+		// energies = append(energies, energy*EvToCm)
 		// ensure we are looking at the new files each time
 		// should move this outside the closure if I make this a goroutine
 		// to avoid too many sys calls
@@ -140,7 +151,10 @@ func AbEnergies(filename string) (abInit []float64) {
 	for _, line := range lines {
 		if line != "" {
 			f, _ := strconv.ParseFloat(line, 64)
+			// in hartrees
 			abInit = append(abInit, f)
+			// in cm-1
+			// abInit = append(abInit, f*HtToCm)
 		}
 	}
 	return
@@ -148,6 +162,9 @@ func AbEnergies(filename string) (abInit []float64) {
 
 func init() {
 	ParseInfile("new.inp")
+	if Input[MaxIter] != "" {
+		maxIter, _ = strconv.Atoi(Input[MaxIter])
+	}
 	MakeInp()
 	jobs = WriteInfiles(ReadGfile(Input[Gfile]), GetAtomNames())
 	abInit = AbEnergies(Input[Efile])
@@ -307,6 +324,7 @@ func RMSD(nstruct int, params []float64,
 func LevMar(nparam, nstruct int, params []float64) {
 
 	var (
+		numJacs   int
 		newparams []float64
 		rmsd      float64
 		newRMSD   float64
@@ -358,7 +376,15 @@ func LevMar(nparam, nstruct int, params []float64) {
 				params, b, jacTjac, aiCol)
 			if newRMSD >= rmsd {
 				try := 1
-				for newRMSD > rmsd {
+				// 6/23
+				// need to be better than the previous, not just equal to it
+				for newRMSD >= rmsd {
+					if newRMSD-rmsd == 0 {
+						// 6/23
+						// give up and run a numerical jacobian
+						// might want to hold the starting lambda value and reset if this happens
+						break
+					}
 					// if we make it here, lambda has to be updated this way
 					// so just go ahead and modify lambda
 					lambda *= nuUp * nu
@@ -372,16 +398,40 @@ func LevMar(nparam, nstruct int, params []float64) {
 			}
 		}
 		fmt.Printf("-> final rmsd: %g, lambda: %g\n", newRMSD, lambda)
-		fmt.Printf("     Delta: %g\n", newRMSD-rmsd)
+		fmt.Printf("     Delta(%d): %g\n", i, newRMSD-rmsd)
 		params = newparams
 		// every 2n iterations, calculate the Jacobian by finite differences
-		// or if broyden is disabled
-		if i%(2*nparam) == 0 || !broyden {
+		// or if broyden is disabled or if delta too small
+		// 6/23
+		// dont run numjac every 2n times if it's going fine, other criterion better
+		// i%(2*nparam) == 0 ||
+		if !broyden || newRMSD-rmsd == 0 {
+			numJacs++
 			fmt.Println("running numerical jacobian")
 			jac = Jacobian(params)
+			// if change is too small, try taking a bigger step
+			// could also try altering delta? for bigger jacobian step
+			// maybe after too many num jacs in a row
+			// two might be too many
+			if newRMSD-rmsd == 0 {
+				// shrink lambda faster if multiple num jacs in a row
+				// 6/23 - add nuDown to product
+				lambda /= float64(numJacs) * nu * nuDown
+				// 6/23
+				// try resetting lambda, not working otherwise
+				// lambda = lambda0
+				// full reset is bad because then it loops right away.
+				// at least if you vary it by a different amount from nuUp, it
+				// hits different values
+			}
+			// I think lambda should be adjusted in here
+			// or count times through here with no change so we can break
+			// see last run for infinite num jac loop
 		} else {
 			// otherwise update by Broyden's method
 			jac = Broyden(nstruct, nparam, jac, step, seColNew, seCol)
+			// and reset numjacs
+			numJacs = 0
 		}
 		seCol = seColNew
 		i++

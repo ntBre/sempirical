@@ -17,6 +17,7 @@ const (
 	Efile
 	Gfile
 	Units
+	MaxIter
 	Geometry
 	Params
 	Nkeys
@@ -38,6 +39,7 @@ func ParseInfile(filename string) {
 		Regexp{regexp.MustCompile(`(?i)efile=`), Efile},
 		Regexp{regexp.MustCompile(`(?i)gfile=`), Gfile},
 		Regexp{regexp.MustCompile(`(?i)units=`), Units},
+		Regexp{regexp.MustCompile(`(?i)maxiter=`), MaxIter},
 	}
 	geom := regexp.MustCompile(`(?i)geometry={`)
 	params := regexp.MustCompile(`(?i)params={`)

@@ -8,7 +8,7 @@ import (
 func TestParseInfile(t *testing.T) {
 	ParseInfile("new.inp")
 	filled := [Nkeys]string{
-		"27", "PM6", "1", "1", "10353", "energy.dat", "file07", "ANGSTROMS",
+		"27", "PM6", "1", "1", "10353", "energy.dat", "file07", "ANGSTROMS", "",
 		"H        0.0000000000        0.0000000000       -5.0705374640\n" +
 			"C        0.0000000000        0.0000000000       -3.0439358050\n" +
 			"C        0.0000000000        0.0000000000       -0.7125467130\n" +
